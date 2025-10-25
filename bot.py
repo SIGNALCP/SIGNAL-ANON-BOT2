@@ -1,89 +1,53 @@
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
+from flask import Flask
+import threading
 import os
-from keep_alive import keep_alive  # анти-сон сервер
 
-# 🚀 Запуск анти-сна
-keep_alive()
-
-# 🔐 Настройки
-TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+# Твой токен и ID
+TOKEN = os.getenv("BOT_TOKEN")  # добавь токен в Render -> Environment
+ADMIN_ID = int(os.getenv("ADMIN_ID"))  # твой Telegram ID
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# 🎯 Кнопка "Отправить сообщение"
-send_button = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="📨 Отправить сообщение", callback_data="send_message")]
-])
+app = Flask(__name__)
 
-# 📸 Приветствие и инструкция
-@dp.message(commands=["start"])
+@app.route('/')
+def home():
+    return "Бот работает!"
+
+# Команда /start
+@dp.message(Command("start"))
 async def start_message(message: types.Message):
-    try:
-        with open("logo.jpg", "rb") as photo:
-            await message.answer_photo(
-                photo=photo,
-                caption=(
-                    "📢 **Приветствуем вас в проекте SIGNAL**\n"
-                    "Анонимная система для сообщений о правонарушениях.\n"
-                    "Ваше имя не сохраняется — всё конфиденциально.\n\n"
-                    "📝 **Как оформить обращение:**\n"
-                    "1️⃣ Что произошло — опишите событие.\n"
-                    "2️⃣ Где — адрес, ориентир или населённый пункт.\n"
-                    "3️⃣ Когда — дата и время.\n"
-                    "4️⃣ Кто причастен — люди, авто, организации.\n"
-                    "5️⃣ Прикрепите фото, видео или голосовое сообщение (по желанию).\n\n"
-                    "⚖️ Все обращения поступают напрямую сотрудникам **МВД по Чеченской Республике.**"
-                ),
-                reply_markup=send_button,
-                parse_mode="Markdown"
-            )
-    except Exception:
-        await message.answer(
-            "📢 **Приветствуем вас в проекте SIGNAL**\n"
-            "Анонимная система для сообщений о правонарушениях.\n"
-            "Ваше имя не сохраняется — всё конфиденциально.",
-            reply_markup=send_button,
-            parse_mode="Markdown"
-        )
-
-# 📨 Когда пользователь нажимает кнопку
-@dp.callback_query(lambda c: c.data == "send_message")
-async def prompt_user(callback_query: types.CallbackQuery):
-    await callback_query.message.answer(
-        "✍️ Опишите ваше сообщение ниже. Можете прикрепить фото, видео или голос."
+    text = (
+        "📡 *Приветствуем вас в проекте SIGNAL!*\n\n"
+        "Этот бот управляется МВД по Чеченской Республике и предназначен "
+        "для приёма анонимных сообщений о правонарушениях.\n\n"
+        "Пожалуйста, опишите ваше сообщение как можно подробнее:\n"
+        "— что произошло\n"
+        "— где и когда\n"
+        "— есть ли фото/видео доказательства\n\n"
+        "Ваша личность остаётся полностью анонимной."
     )
+    await message.answer(text, parse_mode="Markdown")
 
-# 💬 Обработка сообщений
+# Приём сообщений от пользователей
 @dp.message()
 async def handle_message(message: types.Message):
-    # Отправляем админу
-    if message.text:
-        await bot.send_message(ADMIN_ID, f"🕵️‍♂️ Анонимное сообщение:\n{message.text}")
-    elif message.photo:
-        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption="📷 Анонимное фото")
-    elif message.video:
-        await bot.send_video(ADMIN_ID, message.video.file_id, caption="🎥 Анонимное видео")
-    elif message.voice:
-        await bot.send_voice(ADMIN_ID, message.voice.file_id, caption="🎙 Голосовое сообщение")
-    else:
-        await bot.send_message(ADMIN_ID, "📦 Получено вложение неизвестного типа")
+    user_text = message.text
+    await bot.send_message(ADMIN_ID, f"📩 Новое анонимное сообщение:\n\n{user_text}")
+    await message.answer("✅ Спасибо! Ваше сообщение отправлено.")
 
-    # Благодарим пользователя
-    await message.answer(
-        "✅ Ваше сообщение получено.\n"
-        "Благодарим за вашу бдительность и гражданскую позицию. "
-        "Все обращения передаются сотрудникам **МВД по Чеченской Республике** для проверки.",
-        parse_mode="Markdown"
-    )
+# Запуск Flask (для Render)
+def run_flask():
+    app.run(host="0.0.0.0", port=8080)
 
-# 🚀 Запуск
+# Запуск бота
 async def main():
-    print("Бот запущен.")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
+    threading.Thread(target=run_flask).start()
     asyncio.run(main())
